@@ -1,0 +1,163 @@
+.TH update-alternatives 1 "2025-10-15" "update-alternatives 0.5.0" "User Commands"
+.SH NAME
+update-alternatives \- manage executable symlinks in /usr/local/bin
+.SH SYNOPSIS
+.B update-alternatives
+.I COMMAND
+[
+.I OPTIONS
+]
+.PP
+Commands:
+.PP
+.B update-alternatives list
+.RI "[" -n " " \fINAME\fR " | " \fINAME\fR "]"
+.PP
+.B update-alternatives add
+.RI "(" -t " " \fITARGET\fR " | " \fITARGET\fR ")"
+.RI "(" -n " " \fINAME\fR " | " \fINAME\fR ")"
+.RI "(" -w " " \fIWEIGHT\fR " | " \fIWEIGHT\fR ")"
+.PP
+.B update-alternatives remove
+.RI "(" -t " " \fITARGET\fR " | " \fITARGET\fR ")"
+.RI "(" -n " " \fINAME\fR " | " \fINAME\fR ")"
+.PP
+.B update-alternatives sync
+.SH DESCRIPTION
+.B update-alternatives
+manages a simple alternatives database in
+.I /etc/alternatives
+and maintains symlinks in
+.I /usr/local/bin
+accordingly. It provides functionality similar to Debian's
+.BR update-alternatives (8),
+but with a simpler, subcommand-driven interface. Alternatives are chosen by
+priority; the target with the highest numeric priority gets linked.
+.PP
+All operations that modify the database or the symlinks must be run as root.
+If not run as root, the program exits with a non-zero status and prints an
+error.
+.SH COMMANDS
+.TP
+.B list
+List all alternatives for the given
+.I NAME
+and their assigned priority.
+.TP
+.B add
+Add or modify the alternative entry for
+.I NAME
+that points to
+.I TARGET
+with numeric priority
+.I WEIGHT.
+If an entry for
+.I NAME
+already exists, it is updated with the new
+.I TARGET
+and
+.I WEIGHT.
+.TP
+.B remove
+Remove the alternative for
+.I NAME
+that points to
+.I TARGET
+(if present). If there is no such entry, this is a no-op.
+.TP
+.B sync
+Rewrite all symlinks in
+.I /usr/local/bin
+based on the current database in
+.I /etc/alternatives
+without modifying the database. This is useful for package manager hooks.
+.SH OPTIONS
+Each subcommand accepts flags or positional arguments for its parameters. The
+flagged and positional forms are mutually exclusive per parameter.
+.PP
+For
+.B list
+:
+.RS
+.TP
+\fB-n\fR, \fB--name\fR \fINAME\fR
+Name of the alternatives to query. Alternatively, provide \fINAME\fR as the
+first positional argument.
+.RE
+.PP
+For
+.B add
+:
+.RS
+.TP
+\fB-t\fR, \fB--target\fR \fITARGET\fR
+Target path of the alternative to add.
+.TP
+\fB-n\fR, \fB--name\fR \fINAME\fR
+Name of the alternative to add.
+.TP
+\fB-w\fR, \fB--weight\fR \fIWEIGHT\fR
+Numeric priority of the alternative to add (higher wins).
+.TP
+Positional form
+Provide \fINAME\fR, \fITARGET\fR, and \fIWEIGHT\fR as three positional
+arguments in the order shown in the SYNOPSIS instead of using flags.
+.RE
+.PP
+For
+.B remove
+:
+.RS
+.TP
+\fB-t\fR, \fB--target\fR \fITARGET\fR
+Target path of the alternative to remove.
+.TP
+\fB-n\fR, \fB--name\fR \fINAME\fR
+Name of the alternative to remove.
+.TP
+Positional form
+Provide \fINAME\fR and \fITARGET\fR as two positional arguments in the order
+shown in the SYNOPSIS instead of using flags.
+.RE
+.SH FILES
+.TP
+.I /etc/alternatives
+The JSON database storing alternatives definitions.
+.TP
+.I /usr/local/bin
+Directory where the managed symlinks are created.
+.SH EXAMPLES
+.PP
+Use clang instead of gcc for the cc symlink with higher priority:
+.PP
+.nf
+sudo update-alternatives add -t /usr/bin/gcc  -n cc -w 10
+sudo update-alternatives add /usr/bin/clang cc 20
+update-alternatives list cc
+update-alternatives remove -t /usr/bin/gcc -n cc
+.fi
+.PP
+Sync symlinks after a package transaction (useful in hooks):
+.PP
+.nf
+sudo update-alternatives sync
+.fi
+.SH EXIT STATUS
+.TP
+0
+Success.
+.TP
+1
+An error occurred (for example, insufficient privileges, I/O error, invalid
+arguments).
+.SH DIAGNOSTICS
+Error and status messages are printed to standard error.
+.SH SEE ALSO
+.BR update-alternatives (8)
+from Debian/Ubuntu for a more feature-rich alternative.
+.SH AUTHOR
+Originally written by Gregory Meyer. Maintained by Fabian Thomys.
+.SH LICENSE
+This program is licensed under the BSD 3-Clause license. See the project
+.LP
+README for details.
