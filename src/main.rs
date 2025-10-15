@@ -51,19 +51,13 @@ fn main() {
         Err(_) => std::process::exit(1),
     };
 
-    let mutated;
-
-    if let Some(list_matches) = matches.subcommand_matches("list") {
-        mutated = list(&db, list_matches);
-    } else if let Some(add_matches) = matches.subcommand_matches("add") {
-        mutated = add(&mut db, add_matches);
-    } else if let Some(remove_matches) = matches.subcommand_matches("remove") {
-        mutated = remove(&mut db, remove_matches);
-    } else if let Some(_sync_matches) = matches.subcommand_matches("sync") {
-        mutated = sync(&db);
-    } else {
-        mutated = false;
-    }
+    let mutated = match matches.subcommand() {
+        Some(("list", sub_m)) => list(&db, sub_m),
+        Some(("add", sub_m)) => add(&mut db, sub_m),
+        Some(("remove", sub_m)) => remove(&mut db, sub_m),
+        Some(("sync", _sub_m)) => sync(&db),
+        _ => false,
+    };
 
     if mutated && commit(&db).is_err() {
         std::process::exit(1);
@@ -89,7 +83,11 @@ fn read_db<P: std::convert::AsRef<std::path::Path>>(path: P)
 }
 
 fn list(db: &AlternativeDb, matches: &clap::ArgMatches) -> bool {
-    let name = matches.value_of("NAME").unwrap();
+    let name = matches
+        .get_one::<String>("NAME")
+        .or_else(|| matches.get_one::<String>("NAME_POS"))
+        .map(|s| s.as_str())
+        .unwrap();
 
     match db.alternatives(name) {
         Some(alternatives) => {
@@ -104,9 +102,21 @@ fn list(db: &AlternativeDb, matches: &clap::ArgMatches) -> bool {
 }
 
 fn add(db: &mut AlternativeDb, matches: &clap::ArgMatches) -> bool {
-    let target = matches.value_of("TARGET").unwrap();
-    let name = matches.value_of("NAME").unwrap();
-    let weight_str = matches.value_of("WEIGHT").unwrap();
+    let target = matches
+        .get_one::<String>("TARGET")
+        .or_else(|| matches.get_one::<String>("TARGET_POS"))
+        .map(|s| s.as_str())
+        .unwrap();
+    let name = matches
+        .get_one::<String>("NAME")
+        .or_else(|| matches.get_one::<String>("NAME_POS"))
+        .map(|s| s.as_str())
+        .unwrap();
+    let weight_str = matches
+        .get_one::<String>("WEIGHT")
+        .or_else(|| matches.get_one::<String>("WEIGHT_POS"))
+        .map(|s| s.as_str())
+        .unwrap();
 
     let weight: i32 = match weight_str.parse() {
         Ok(w) => w,
@@ -129,8 +139,16 @@ fn add(db: &mut AlternativeDb, matches: &clap::ArgMatches) -> bool {
 }
 
 fn remove(db: &mut AlternativeDb, matches: &clap::ArgMatches) -> bool {
-    let target = matches.value_of("TARGET").unwrap();
-    let name = matches.value_of("NAME").unwrap();
+    let target = matches
+        .get_one::<String>("TARGET")
+        .or_else(|| matches.get_one::<String>("TARGET_POS"))
+        .map(|s| s.as_str())
+        .unwrap();
+    let name = matches
+        .get_one::<String>("NAME")
+        .or_else(|| matches.get_one::<String>("NAME_POS"))
+        .map(|s| s.as_str())
+        .unwrap();
 
     if db.remove_alternative(name, target) {
         println!("update-alternatives: removed alternative {} for {}",
@@ -166,70 +184,138 @@ fn sync(db: &AlternativeDb) -> bool {
     false
 }
 
-fn app<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::App::new("update-alternatives")
-        .version(crate_version!())
-        .author("Gregory Meyer <gregjm@umich.edu>, Fabian Thomys <git@fthomys.me>")
+use clap::Command;
+
+fn app() -> clap::Command {
+    use clap::{Arg, Command};
+    Command::new("update-alternatives")
+        .version(clap::crate_version!())
+        .author(clap::crate_authors!())
         .about(ABOUT)
-        .subcommand(clap::SubCommand::with_name("list")
-                        .about(LIST_ABOUT)
-                        .arg(clap::Arg::with_name("NAME")
-                                 .help("The name of the alternatives to query")
-                                 .value_name("NAME")
-                                 .short("n")
-                                 .long("name")
-                                 .required(true)
-                                 .takes_value(true)
-                                 .index(1)))
-        .subcommand(clap::SubCommand::with_name("add")
-                        .about(ADD_ABOUT)
-                        .arg(clap::Arg::with_name("TARGET")
-                                 .help("The target of the alternative to add")
-                                 .value_name("TARGET")
-                                 .short("t")
-                                 .long("target")
-                                 .required(true)
-                                 .takes_value(true)
-                                 .index(2))
-                        .arg(clap::Arg::with_name("NAME")
-                                 .help("The name of the alternative to add")
-                                 .value_name("NAME")
-                                 .short("n")
-                                 .long("name")
-                                 .required(true)
-                                 .takes_value(true)
-                                 .index(1))
-                        .arg(clap::Arg::with_name("WEIGHT")
-                                 .help("The priority of the alternative to add")
-                                 .value_name("WEIGHT")
-                                 .short("w")
-                                 .long("weight")
-                                 .required(true)
-                                 .takes_value(true)
-                                 .index(3)))
-        .subcommand(clap::SubCommand::with_name("remove")
-                        .about(REMOVE_ABOUT)
-                        .arg(clap::Arg::with_name("TARGET")
-                                 .help("The target of the \
-                                       alternative to remove")
-                                 .value_name("TARGET")
-                                 .short("t")
-                                 .long("target")
-                                 .required(true)
-                                 .takes_value(true)
-                                 .index(2))
-                        .arg(clap::Arg::with_name("NAME")
-                                 .help("The name of the alternative to remove")
-                                 .value_name("NAME")
-                                 .short("n")
-                                 .long("name")
-                                 .required(true)
-                                 .takes_value(true)
-                                 .index(1)))
-        .subcommand(clap::SubCommand::with_name("sync")
-                        .about(SYNC_ABOUT))
-        .setting(clap::AppSettings::SubcommandRequiredElseHelp)
-        .setting(clap::AppSettings::GlobalVersion)
+        .subcommand(
+            Command::new("list")
+                .about(LIST_ABOUT)
+                .arg(
+                    Arg::new("NAME")
+                        .help("The name of the alternatives to query")
+                        .value_name("NAME")
+                        .short('n')
+                        .long("name")
+                        .num_args(1)
+                        .required_unless_present("NAME_POS")
+                        .conflicts_with("NAME_POS"),
+                )
+                .arg(
+                    Arg::new("NAME")
+                        .help("The name of the alternatives to query")
+                        .value_name("NAME")
+                        .index(1)
+                        .required_unless_present("NAME")
+                        .conflicts_with("NAME"),
+                ),
+        )
+        .subcommand(
+            Command::new("add")
+                .about(ADD_ABOUT)
+                .arg(
+                    Arg::new("TARGET")
+                        .help("The target of the alternative to add")
+                        .value_name("TARGET")
+                        .short('t')
+                        .long("target")
+                        .num_args(1)
+                        .required_unless_present("TARGET_POS")
+                        .conflicts_with("TARGET_POS"),
+                )
+                .arg(
+                    Arg::new("NAME")
+                        .help("The name of the alternative to add")
+                        .value_name("NAME")
+                        .short('n')
+                        .long("name")
+                        .num_args(1)
+                        .required_unless_present("NAME_POS")
+                        .conflicts_with("NAME_POS"),
+                )
+                .arg(
+                    Arg::new("WEIGHT")
+                        .help("The priority of the alternative to add")
+                        .value_name("WEIGHT")
+                        .short('w')
+                        .long("weight")
+                        .num_args(1)
+                        .required_unless_present("WEIGHT_POS")
+                        .conflicts_with("WEIGHT_POS"),
+                )
+                .arg(
+                    Arg::new("NAME")
+                        .help("The name of the alternative to add")
+                        .value_name("NAME")
+                        .index(1)
+                        .required_unless_present("NAME")
+                        .conflicts_with("NAME"),
+                )
+                .arg(
+                    Arg::new("TARGET")
+                        .help("The target of the alternative to add")
+                        .value_name("TARGET")
+                        .index(2)
+                        .required_unless_present("TARGET")
+                        .conflicts_with("TARGET"),
+                )
+                .arg(
+                    Arg::new("WEIGHT")
+                        .help("The priority of the alternative to add")
+                        .value_name("WEIGHT")
+                        .index(3)
+                        .required_unless_present("WEIGHT")
+                        .conflicts_with("WEIGHT"),
+                ),
+        )
+        .subcommand(
+            Command::new("remove")
+                .about(REMOVE_ABOUT)
+                .arg(
+                    Arg::new("TARGET")
+                        .help("The target of the alternative to remove")
+                        .value_name("TARGET")
+                        .short('t')
+                        .long("target")
+                        .num_args(1)
+                        .required_unless_present("TARGET_POS")
+                        .conflicts_with("TARGET_POS"),
+                )
+                .arg(
+                    Arg::new("NAME")
+                        .help("The name of the alternative to remove")
+                        .value_name("NAME")
+                        .short('n')
+                        .long("name")
+                        .num_args(1)
+                        .required_unless_present("NAME_POS")
+                        .conflicts_with("NAME_POS"),
+                )
+                .arg(
+                    Arg::new("NAME")
+                        .help("The name of the alternative to remove")
+                        .value_name("NAME")
+                        .index(1)
+                        .required_unless_present("NAME")
+                        .conflicts_with("NAME"),
+                )
+                .arg(
+                    Arg::new("TARGET")
+                        .help("The target of the alternative to remove")
+                        .value_name("TARGET")
+                        .index(2)
+                        .required_unless_present("TARGET")
+                        .conflicts_with("TARGET"),
+                ),
+        )
+        .subcommand(Command::new("sync").about(SYNC_ABOUT))
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .propagate_version(true)
 }
 
 static ABOUT: &'static str =
@@ -239,7 +325,7 @@ static ABOUT: &'static str =
     different interface. Alternatives are selected by comparing their assigned \
     priority values, with the highest priority being linked to. \
     Example usage to use 'vim' to open 'nvim'': \
-    \n\n    sudo update-alternatives add -n vim -t /usr/bin/nvim -w 100 ";
+    \nsudo update-alternatives add -n vim -t /usr/bin/nvim -w 100 ";
 
 static LIST_ABOUT: &'static str =
     "Lists all alternatives for <NAME> and their assigned priority.";
