@@ -54,6 +54,39 @@ that points to `TARGET` should there be one. If such an alternative is not
 found, this is a no-op. You will require read-write access to
 `/usr/local/bin` and `/etc/alternatives` to run this subcommand.
 
+`update-alternatives sync` will rewrite all symlinks in `/usr/local/bin` based on
+what is defined in `/etc/alternatives` without modifying the database. This is
+useful for package manager hooks.
+
+## Pacman hook integration (Arch Linux/libalpm)
+
+To keep alternatives in sync automatically when packages are installed, upgraded,
+or removed, you can install a pacman hook that runs after each transaction.
+Create a file named `update-alternatives.hook` in either
+`/etc/pacman.d/hooks/` (system-specific) or package it into
+`/usr/share/libalpm/hooks/` with the following content:
+
+```ini
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+# Re-run when these areas may change
+Target = usr/bin/*
+Target = usr/local/bin/*
+Target = etc/alternatives/*
+
+[Action]
+Description = Rebuilding alternatives symlinks
+When = PostTransaction
+Exec = /usr/bin/update-alternatives sync
+```
+
+This hook will run `update-alternatives sync` as root after pacman finishes a
+transaction, ensuring the symlinks in `/usr/local/bin` match the current
+alternatives database.
+
 ## Installation
 
 Clone this repository, then run `cargo build --release` in the root of the
