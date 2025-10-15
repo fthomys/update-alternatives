@@ -38,6 +38,12 @@ use alternative::Alternative;
 use alternative_db::AlternativeDb;
 
 fn main() {
+    let uid = nix::unistd::getuid();
+    if uid.is_root() == false {
+        eprintln!("update-alternatives: must be run as root");
+        std::process::exit(1);
+    }
+    
     let matches = app().get_matches();
 
     let mut db = match read_db("/etc/alternatives") {
@@ -53,6 +59,8 @@ fn main() {
         mutated = add(&mut db, add_matches);
     } else if let Some(remove_matches) = matches.subcommand_matches("remove") {
         mutated = remove(&mut db, remove_matches);
+    } else if let Some(_sync_matches) = matches.subcommand_matches("sync") {
+        mutated = sync(&db);
     } else {
         mutated = false;
     }
@@ -149,10 +157,19 @@ fn commit(db: &AlternativeDb) -> std::io::Result<()> {
     }
 }
 
+fn sync(db: &AlternativeDb) -> bool {
+    if let Err(e) = db.write_links() {
+        eprintln!("update-alternatives: could not write symlinks: {}", e);
+        std::process::exit(1);
+    }
+
+    false
+}
+
 fn app<'a, 'b>() -> clap::App<'a, 'b> {
     clap::App::new("update-alternatives")
         .version(crate_version!())
-        .author("Gregory Meyer <gregjm@umich.edu>")
+        .author("Gregory Meyer <gregjm@umich.edu>, Fabian Thomys <git@fthomys.me>")
         .about(ABOUT)
         .subcommand(clap::SubCommand::with_name("list")
                         .about(LIST_ABOUT)
@@ -162,7 +179,8 @@ fn app<'a, 'b>() -> clap::App<'a, 'b> {
                                  .short("n")
                                  .long("name")
                                  .required(true)
-                                 .takes_value(true)))
+                                 .takes_value(true)
+                                 .index(1)))
         .subcommand(clap::SubCommand::with_name("add")
                         .about(ADD_ABOUT)
                         .arg(clap::Arg::with_name("TARGET")
@@ -171,21 +189,24 @@ fn app<'a, 'b>() -> clap::App<'a, 'b> {
                                  .short("t")
                                  .long("target")
                                  .required(true)
-                                 .takes_value(true))
+                                 .takes_value(true)
+                                 .index(2))
                         .arg(clap::Arg::with_name("NAME")
                                  .help("The name of the alternative to add")
                                  .value_name("NAME")
                                  .short("n")
                                  .long("name")
                                  .required(true)
-                                 .takes_value(true))
+                                 .takes_value(true)
+                                 .index(1))
                         .arg(clap::Arg::with_name("WEIGHT")
                                  .help("The priority of the alternative to add")
                                  .value_name("WEIGHT")
                                  .short("w")
                                  .long("weight")
                                  .required(true)
-                                 .takes_value(true)))
+                                 .takes_value(true)
+                                 .index(3)))
         .subcommand(clap::SubCommand::with_name("remove")
                         .about(REMOVE_ABOUT)
                         .arg(clap::Arg::with_name("TARGET")
@@ -195,14 +216,18 @@ fn app<'a, 'b>() -> clap::App<'a, 'b> {
                                  .short("t")
                                  .long("target")
                                  .required(true)
-                                 .takes_value(true))
+                                 .takes_value(true)
+                                 .index(2))
                         .arg(clap::Arg::with_name("NAME")
                                  .help("The name of the alternative to remove")
                                  .value_name("NAME")
                                  .short("n")
                                  .long("name")
                                  .required(true)
-                                 .takes_value(true)))
+                                 .takes_value(true)
+                                 .index(1)))
+        .subcommand(clap::SubCommand::with_name("sync")
+                        .about(SYNC_ABOUT))
         .setting(clap::AppSettings::SubcommandRequiredElseHelp)
         .setting(clap::AppSettings::GlobalVersion)
 }
@@ -212,7 +237,9 @@ static ABOUT: &'static str =
     /etc/alternatives for persistence between invocations. Provides similar \
     functionality to Debian's update-alternatives, but with a slightly \
     different interface. Alternatives are selected by comparing their assigned \
-    priority values, with the highest priority being linked to.";
+    priority values, with the highest priority being linked to. \
+    Example usage to use 'vim' to open 'nvim'': \
+    \n\n    sudo update-alternatives add -n vim -t /usr/bin/nvim -w 100 ";
 
 static LIST_ABOUT: &'static str =
     "Lists all alternatives for <NAME> and their assigned priority.";
@@ -226,3 +253,9 @@ static REMOVE_ABOUT: &'static str =
     "If one exists, removes the alternative for <NAME> that points to \
     <TARGET>. If the database is modified, requires read/write access to \
     /etc/alternatives and /usr/local/bin.";
+
+static SYNC_ABOUT: &'static str =
+    "Rewrites all symlinks in /usr/local/bin based on the current state of \
+    /etc/alternatives without modifying the database. Useful for package \
+    manager hooks (e.g., pacman libalpm hooks) after installs, upgrades, or \
+    removals.";
