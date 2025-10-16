@@ -236,7 +236,7 @@ checksum = "f63a545481291138910575129486daeaf8ac54aee4387fe7906919f7830c7d9d"
 
 [[package]]
 name = "update-alternatives"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "clap",
  "nix",

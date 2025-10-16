@@ -38,11 +38,55 @@ mod filesystem;
 use alternative::Alternative;
 use alternative_db::AlternativeDb;
 
+fn escalate_privileges() -> std::io::Result<()> {
+    use std::process::Command;
+
+    let exe = std::env::current_exe()?;
+    let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+
+    #[cfg(target_os = "linux")]
+    {
+        match Command::new("pkexec").arg(&exe).args(&args).status() {
+            Ok(status) => {
+                let code = status.code().unwrap_or(1);
+                std::process::exit(code);
+            }
+            Err(pkerr) => {
+                // Fallback to sudo
+                match Command::new("sudo").arg(&exe).args(&args).status() {
+                    Ok(status) => {
+                        let code = status.code().unwrap_or(1);
+                        std::process::exit(code);
+                    }
+                    Err(_suderr) => {
+                        Err(pkerr)
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        match Command::new("sudo").arg(&exe).args(&args).status() {
+            Ok(status) => {
+                let code = status.code().unwrap_or(1);
+                std::process::exit(code);
+            }
+            Err(e) => Err(e),
+        }
+    }
+}
+
 fn main() {
-    let uid = nix::unistd::getuid();
-    if uid.is_root() == false {
-        eprintln!("update-alternatives: must be run as root");
-        std::process::exit(1);
+    let euid = nix::unistd::geteuid();
+    if !euid.is_root() {
+        if let Err(e) = escalate_privileges() {
+            eprintln!("update-alternatives: must be run as root (auto-escalation failed: {})", e);
+            std::process::exit(1);
+        } else {
+            unreachable!("escalate_privileges should not return Ok(()) in non-root context");
+        }
     }
     
     let matches = app().get_matches();
@@ -207,7 +251,7 @@ fn app() -> clap::Command {
                         .conflicts_with("NAME_POS"),
                 )
                 .arg(
-                    Arg::new("NAME")
+                    Arg::new("NAME_POS")
                         .help("The name of the alternatives to query")
                         .value_name("NAME")
                         .index(1)
