@@ -111,6 +111,10 @@ impl AlternativeDb {
         self.table.len()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &AlternativeList)> {
+        self.table.iter()
+    }
+
     pub fn has_alternatives(&self, name: &str) -> bool {
         self.table.contains_key(name)
     }
@@ -260,8 +264,5 @@ impl AlternativeDb {
 fn estimate_size<I: std::iter::Iterator>(iter: &I) -> usize {
     let (lower_bound, upper_bound) = iter.size_hint();
 
-    match upper_bound {
-        Some(v) => v,
-        None => lower_bound,
-    }
+    upper_bound.unwrap_or_else(|| lower_bound)
 }

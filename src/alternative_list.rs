@@ -48,6 +48,14 @@ impl AlternativeList {
         self.links.len()
     }
 
+    pub fn current_target(&self) -> Option<&std::path::Path> {
+        self.links.iter().max_by_key(|l| l.priority()).map(|l| l.target())
+    }
+
+    pub fn links(&self) -> &[Alternative] {
+        &self.links
+    }
+
     pub fn make_symlink(&self) -> std::io::Result<bool> {
         let (target, priority) = match self.links
                                            .iter()
