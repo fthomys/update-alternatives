@@ -100,5 +100,5 @@ easily find one on AUR. This seemed fun and easy enough.
 
 ## Contributors
 
-`update-alternatives` is authored and maintained by Gregory Meyer, and is
+`update-alternatives` is authored by Gregory Meyer and now maintained by Fabian Thomys, and is
 licensed under the BSD 3-Clause license.
